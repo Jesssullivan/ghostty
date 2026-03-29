@@ -431,6 +431,12 @@ typedef struct {
   void* surface;
 } ghostty_platform_linux_s;
 
+// Undefine the `linux` macro that GCC/Clang predefine on GNU/Linux
+// (expands to `1`), which would break the union member name below.
+#ifdef linux
+#undef linux
+#endif
+
 typedef union {
   ghostty_platform_macos_s macos;
   ghostty_platform_ios_s ios;
