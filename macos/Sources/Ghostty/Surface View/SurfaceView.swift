@@ -693,15 +693,15 @@ extension Ghostty {
             config.userdata = Unmanaged.passUnretained(view).toOpaque()
 #if os(macOS)
             config.platform_tag = GHOSTTY_PLATFORM_MACOS
-            config.platform = ghostty_platform_u(macos: ghostty_platform_macos_s(
+            config.platform.macos = ghostty_platform_macos_s(
                 nsview: Unmanaged.passUnretained(view).toOpaque()
-            ))
+            )
             config.scale_factor = NSScreen.main!.backingScaleFactor
 #elseif os(iOS)
             config.platform_tag = GHOSTTY_PLATFORM_IOS
-            config.platform = ghostty_platform_u(ios: ghostty_platform_ios_s(
+            config.platform.ios = ghostty_platform_ios_s(
                 uiview: Unmanaged.passUnretained(view).toOpaque()
-            ))
+            )
             // Note that UIScreen.main is deprecated and we're supposed to get the
             // screen through the view hierarchy instead. This means that we should
             // probably set this to some default, then modify the scale factor through
