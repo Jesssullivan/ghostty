@@ -207,11 +207,10 @@ pub fn threadEnter(self: *const OpenGL, surface: *apprt.Surface) !void {
             // on the main thread. As such, we don't do anything here.
         },
 
-        apprt.embedded => {
-            // TODO(mitchellh): this does nothing today to allow libghostty
-            // to compile for OpenGL targets but libghostty is strictly
-            // broken for rendering on this platforms.
-        },
+        // Embedded (libghostty): reload GL bindings on the renderer thread.
+        // The host app's GL context may be thread-local, so glad needs
+        // to load function pointers for this thread too.
+        apprt.embedded => try prepareContext(null),
     }
 }
 
