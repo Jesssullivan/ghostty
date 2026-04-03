@@ -50,10 +50,11 @@ pub const App = struct {
         /// Callback called to handle an action.
         action: *const fn (*App, apprt.Target.C, apprt.Action.C) callconv(.c) bool,
 
-        /// Read the clipboard value. The return value must be preserved
-        /// by the host until the next call. If there is no valid clipboard
-        /// value then this should return null.
-        read_clipboard: *const fn (SurfaceUD, c_int, *apprt.ClipboardRequest) callconv(.c) void,
+        /// Read the clipboard value. Returns true if the clipboard request
+        /// was started and complete_clipboard_request may be called with the
+        /// given state pointer. Returns false if the clipboard request couldn't
+        /// be started (such as when no text is available for a paste request).
+        read_clipboard: *const fn (SurfaceUD, c_int, *apprt.ClipboardRequest) callconv(.c) bool,
 
         /// This may be called after a read clipboard call to request
         /// confirmation that the clipboard value is safe to read. The embedder
@@ -550,7 +551,15 @@ pub const Surface = struct {
                     break :wd;
                 }
 
-                config.@"working-directory" = wd;
+                var wd_val: configpkg.WorkingDirectory = .{ .path = wd };
+                if (wd_val.finalize(config.arenaAlloc())) |_| {
+                    config.@"working-directory" = wd_val;
+                } else |err| {
+                    log.warn(
+                        "error finalizing working directory config dir={s} err={}",
+                        .{ wd_val.path, err },
+                    );
+                }
             }
         }
 
@@ -722,14 +731,16 @@ pub const Surface = struct {
         errdefer alloc.destroy(state_ptr);
         state_ptr.* = state;
 
-        self.app.opts.read_clipboard(
+        const started = self.app.opts.read_clipboard(
             self.userdata,
             @intCast(@intFromEnum(clipboard_type)),
             state_ptr,
         );
+        if (!started) {
+            alloc.destroy(state_ptr);
+            return false;
+        }
 
-        // Embedded apprt can't synchronously check clipboard content types,
-        // so we always return true to indicate the request was started.
         return true;
     }
 
@@ -1650,7 +1661,7 @@ pub const CAPI = struct {
         return surface.core_surface.hasSelection();
     }
 
-    /// Start a selection at the active cursor cell.
+    /// Start a selection anchored at the cursor position.
     export fn ghostty_surface_select_cursor_cell(surface: *Surface) bool {
         return surface.core_surface.selectCursorCell() catch |err| {
             log.warn("error selecting cursor cell err={}", .{err});
@@ -1658,12 +1669,16 @@ pub const CAPI = struct {
         };
     }
 
-    /// Clear the active selection.
+    /// Clear the current selection. Returns true if a selection was cleared.
     export fn ghostty_surface_clear_selection(surface: *Surface) bool {
-        return surface.core_surface.clearSelection() catch |err| {
-            log.warn("error clearing selection err={}", .{err});
-            return false;
-        };
+        surface.core_surface.renderer_state.mutex.lock();
+        defer surface.core_surface.renderer_state.mutex.unlock();
+
+        const screen: *terminal.Screen = surface.core_surface.io.terminal.screens.active;
+        if (screen.selection == null) return false;
+        screen.clearSelection();
+        screen.dirty.selection = true;
+        return true;
     }
 
     /// Same as ghostty_surface_read_text but reads from the user selection,
