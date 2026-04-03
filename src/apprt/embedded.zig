@@ -343,6 +343,7 @@ pub const App = struct {
 pub const Platform = union(PlatformTag) {
     macos: MacOS,
     ios: IOS,
+    linux: Linux,
 
     // If our build target for libghostty is not darwin then we do
     // not include macos support at all.
@@ -356,6 +357,12 @@ pub const Platform = union(PlatformTag) {
         uiview: objc.Object,
     } else void;
 
+    /// Linux platform: the host widget for rendering (e.g. GtkGLArea).
+    pub const Linux = if (builtin.target.os.tag == .linux) struct {
+        /// The widget hosting this surface for rendering.
+        surface: ?*anyopaque,
+    } else void;
+
     // The C ABI compatible version of this union. The tag is expected
     // to be stored elsewhere.
     pub const C = extern union {
@@ -365,6 +372,10 @@ pub const Platform = union(PlatformTag) {
 
         ios: extern struct {
             uiview: ?*anyopaque,
+        },
+
+        linux: extern struct {
+            surface: ?*anyopaque,
         },
     };
 
@@ -385,6 +396,10 @@ pub const Platform = union(PlatformTag) {
                     break :ios error.UIViewMustBeSet);
                 break :ios .{ .ios = .{ .uiview = uiview } };
             } else error.UnsupportedPlatform,
+
+            .linux => if (Linux != void) .{
+                .linux = .{ .surface = c_platform.linux.surface },
+            } else error.UnsupportedPlatform,
         };
     }
 };
@@ -395,6 +410,7 @@ pub const PlatformTag = enum(c_int) {
 
     macos = 1,
     ios = 2,
+    linux = 3,
 };
 
 pub const EnvVar = extern struct {
