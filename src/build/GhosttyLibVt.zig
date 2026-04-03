@@ -9,13 +9,24 @@ const GhosttyZig = @import("GhosttyZig.zig");
 /// The step that generates the file.
 step: *std.Build.Step,
 
-/// The artifact result
-artifact: *std.Build.Step.InstallArtifact,
+/// The install step for the library output.
+artifact: *std.Build.Step,
+
+/// The kind of library
+kind: Kind,
 
 /// The final library file
 output: std.Build.LazyPath,
 dsym: ?std.Build.LazyPath,
 pkg_config: ?std.Build.LazyPath,
+
+/// The kind of library being built. This is similar to LinkMode but
+/// also includes wasm which is an executable, not a library.
+const Kind = enum {
+    wasm,
+    shared,
+    static,
+};
 
 pub fn initWasm(
     b: *std.Build,
@@ -33,26 +44,72 @@ pub fn initWasm(
     // Allow exported symbols to actually be exported.
     exe.rdynamic = true;
 
+    // Export the indirect function table so that embedders (e.g. JS in
+    // a browser) can insert callback entries for terminal effects.
+    exe.export_table = true;
+
     // There is no entrypoint for this wasm module.
     exe.entry = .disabled;
 
+    // Zig's WASM linker doesn't support --growable-table, so the table
+    // is emitted with max == min and can't be grown from JS. Run a
+    // small Zig build tool that patches the binary's table section to
+    // remove the max limit.
+    const patch_run = patch: {
+        const patcher = b.addExecutable(.{
+            .name = "wasm_patch_growable_table",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/build/wasm_patch_growable_table.zig"),
+                .target = b.graph.host,
+            }),
+        });
+        break :patch b.addRunArtifact(patcher);
+    };
+    patch_run.addFileArg(exe.getEmittedBin());
+    const output = patch_run.addOutputFileArg("ghostty-vt.wasm");
+    const artifact_install = b.addInstallFileWithDir(
+        output,
+        .bin,
+        "ghostty-vt.wasm",
+    );
+
     return .{
-        .step = &exe.step,
-        .artifact = b.addInstallArtifact(exe, .{}),
-        .output = exe.getEmittedBin(),
+        .step = &patch_run.step,
+        .artifact = &artifact_install.step,
+        .kind = .wasm,
+        .output = output,
         .dsym = null,
         .pkg_config = null,
     };
+}
+
+pub fn initStatic(
+    b: *std.Build,
+    zig: *const GhosttyZig,
+) !GhosttyLibVt {
+    return initLib(b, zig, .static);
 }
 
 pub fn initShared(
     b: *std.Build,
     zig: *const GhosttyZig,
 ) !GhosttyLibVt {
+    return initLib(b, zig, .dynamic);
+}
+
+fn initLib(
+    b: *std.Build,
+    zig: *const GhosttyZig,
+    linkage: std.builtin.LinkMode,
+) !GhosttyLibVt {
+    const kind: Kind = switch (linkage) {
+        .static => .static,
+        .dynamic => .shared,
+    };
     const target = zig.vt.resolved_target.?;
     const lib = b.addLibrary(.{
-        .name = "ghostty-vt",
-        .linkage = .dynamic,
+        .name = if (kind == .static) "ghostty-vt-static" else "ghostty-vt",
+        .linkage = linkage,
         .root_module = zig.vt_c,
         .version = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 0 },
     });
@@ -61,6 +118,25 @@ pub fn initShared(
         "ghostty",
         .{ .include_extensions = &.{".h"} },
     );
+
+    if (kind == .static) {
+        // These must be bundled since we're compiling into a static lib.
+        // Otherwise, you get undefined symbol errors. This could cause
+        // problems if you're linking multiple static Zig libraries but
+        // we'll cross that bridge when we get to it.
+        lib.bundle_compiler_rt = true;
+        lib.bundle_ubsan_rt = true;
+
+        // Enable PIC so the static library can be linked into PIE
+        // executables, which is the default on most Linux distributions.
+        lib.root_module.pic = true;
+    }
+
+    if (target.result.os.tag == .windows) {
+        // Zig's ubsan emits /exclude-symbols linker directives that
+        // are incompatible with the MSVC linker (LNK4229).
+        lib.bundle_ubsan_rt = false;
+    }
 
     if (lib.rootModuleTarget().abi.isAndroid()) {
         // Support 16kb page sizes, required for Android 15+.
@@ -82,11 +158,10 @@ pub fn initShared(
         if (builtin.os.tag.isDarwin()) try @import("apple_sdk").addPaths(b, lib);
     }
 
-    // Get our debug symbols
+    // Get our debug symbols (only for shared libs; static libs aren't linked)
     const dsymutil: ?std.Build.LazyPath = dsymutil: {
-        if (!target.result.os.tag.isDarwin()) {
-            break :dsymutil null;
-        }
+        if (kind != .shared) break :dsymutil null;
+        if (!target.result.os.tag.isDarwin()) break :dsymutil null;
 
         const dsymutil = RunStep.create(b, "dsymutil");
         dsymutil.addArgs(&.{"dsymutil"});
@@ -115,7 +190,8 @@ pub fn initShared(
 
     return .{
         .step = &lib.step,
-        .artifact = b.addInstallArtifact(lib, .{}),
+        .artifact = &b.addInstallArtifact(lib, .{}).step,
+        .kind = kind,
         .output = lib.getEmittedBin(),
         .dsym = dsymutil,
         .pkg_config = pc,
@@ -127,7 +203,7 @@ pub fn install(
     step: *std.Build.Step,
 ) void {
     const b = step.owner;
-    step.dependOn(&self.artifact.step);
+    step.dependOn(self.artifact);
     if (self.pkg_config) |pkg_config| {
         step.dependOn(&b.addInstallFileWithDir(
             pkg_config,
