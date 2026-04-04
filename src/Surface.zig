@@ -631,19 +631,6 @@ pub fn init(
         break :command config.command;
     };
 
-    const use_manual_io = if (comptime @hasDecl(apprt.runtime.Surface, "ioMode"))
-        rt_surface.ioMode() == .manual
-    else
-        false;
-    const manual_write_cb = if (comptime @hasDecl(apprt.runtime.Surface, "ioWriteCallback"))
-        rt_surface.ioWriteCallback()
-    else
-        null;
-    const manual_write_userdata = if (comptime @hasDecl(apprt.runtime.Surface, "ioWriteUserdata"))
-        rt_surface.ioWriteUserdata()
-    else
-        null;
-
     // Start our IO implementation
     // This separate block ({}) is important because our errdefers must
     // be scoped here to be valid.
@@ -681,52 +668,21 @@ pub fn init(
         });
         errdefer io_exec.deinit();
 
-            var io_mailbox = try termio.Mailbox.initSPSC(alloc);
-            errdefer io_mailbox.deinit(alloc);
+        // Initialize our IO mailbox
+        var io_mailbox = try termio.Mailbox.initSPSC(alloc);
+        errdefer io_mailbox.deinit(alloc);
 
-            try termio.Termio.init(&self.io, alloc, .{
-                .size = size,
-                .full_config = config,
-                .config = try termio.Termio.DerivedConfig.init(alloc, config),
-                .backend = .{ .manual = io_manual },
-                .mailbox = io_mailbox,
-                .renderer_state = &self.renderer_state,
-                .renderer_wakeup = render_thread.wakeup,
-                .renderer_mailbox = render_thread.mailbox,
-                .surface_mailbox = .{ .surface = self, .app = app_mailbox },
-            });
-        } else {
-            var io_exec = try termio.Exec.init(alloc, .{
-                .command = command,
-                .env = env,
-                .env_override = config.env,
-                .shell_integration = config.@"shell-integration",
-                .shell_integration_features = config.@"shell-integration-features",
-                .cursor_blink = config.@"cursor-style-blink",
-                .working_directory = config.@"working-directory",
-                .resources_dir = global_state.resources_dir.host(),
-                .term = config.term,
-                .rt_pre_exec_info = .init(config),
-                .rt_post_fork_info = .init(config),
-            });
-            errdefer io_exec.deinit();
-
-            // Initialize our IO mailbox
-            var io_mailbox = try termio.Mailbox.initSPSC(alloc);
-            errdefer io_mailbox.deinit(alloc);
-
-            try termio.Termio.init(&self.io, alloc, .{
-                .size = size,
-                .full_config = config,
-                .config = try termio.Termio.DerivedConfig.init(alloc, config),
-                .backend = .{ .exec = io_exec },
-                .mailbox = io_mailbox,
-                .renderer_state = &self.renderer_state,
-                .renderer_wakeup = render_thread.wakeup,
-                .renderer_mailbox = render_thread.mailbox,
-                .surface_mailbox = .{ .surface = self, .app = app_mailbox },
-            });
-        }
+        try termio.Termio.init(&self.io, alloc, .{
+            .size = size,
+            .full_config = config,
+            .config = try termio.Termio.DerivedConfig.init(alloc, config),
+            .backend = .{ .exec = io_exec },
+            .mailbox = io_mailbox,
+            .renderer_state = &self.renderer_state,
+            .renderer_wakeup = render_thread.wakeup,
+            .renderer_mailbox = render_thread.mailbox,
+            .surface_mailbox = .{ .surface = self, .app = app_mailbox },
+        });
     }
     // Outside the block, IO has now taken ownership of our temporary state
     // so we can just defer this and not the subcomponents.
