@@ -59,6 +59,7 @@ d-dudas
 -daedaevibin
 daiimus
 damyanbogoev
+danneu
 danulqua
 dariogriffo
 davidsanchez222
@@ -70,6 +71,7 @@ dmehala
 doprz
 douglance
 douglas
+douglas-macgregor
 drepper
 dzhlobo
 ekaterinepapava
@@ -86,6 +88,7 @@ gmile
 gordonbondon
 gpanders
 guilhermetk
+h3nock
 hakonhagland
 halosatrio
 heaths
@@ -99,14 +102,17 @@ icodesign
 j0hnm4r5
 jacobsandlund
 jake-stewart
+jarred-sumner
 jcollie
 jesusvazquez
 jguthmiller
 jmcgover
 johnslavik
+jordandm
 josephmart
 jparise
 juniqlim
+justonia
 karesansui-u
 kawarimidoll
 kenvandine

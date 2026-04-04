@@ -5,6 +5,8 @@ const builtin = @import("builtin");
 const assert = std.debug.assert;
 const RunStep = std.Build.Step.Run;
 const GhosttyZig = @import("GhosttyZig.zig");
+const LibtoolStep = @import("LibtoolStep.zig");
+const SharedDeps = @import("SharedDeps.zig");
 
 /// The step that generates the file.
 step: *std.Build.Step,
@@ -185,8 +187,34 @@ fn initLib(
             \\Version: 0.1.0
             \\Cflags: -I${{includedir}}
             \\Libs: -L${{libdir}} -lghostty-vt
-        , .{b.install_prefix}));
+            \\Libs.private: {s}
+            \\Requires.private: {s}
+        , .{ b.install_prefix, libsPrivate(zig), requiresPrivate(b) }));
     };
+
+    // For static libraries with vendored SIMD dependencies, combine
+    // all archives into a single fat archive so consumers only need
+    // to link one file. Skip on Windows where ar/libtool aren't available.
+    if (kind == .static and
+        zig.simd_libs.items.len > 0 and
+        target.result.os.tag != .windows)
+    {
+        var sources: SharedDeps.LazyPathList = .empty;
+        try sources.append(b.allocator, lib.getEmittedBin());
+        try sources.appendSlice(b.allocator, zig.simd_libs.items);
+
+        const combined = combineArchives(b, target, sources.items);
+        combined.step.dependOn(&lib.step);
+
+        return .{
+            .step = combined.step,
+            .artifact = &b.addInstallArtifact(lib, .{}).step,
+            .kind = kind,
+            .output = combined.output,
+            .dsym = dsymutil,
+            .pkg_config = pc,
+        };
+    }
 
     return .{
         .step = &lib.step,
@@ -196,6 +224,74 @@ fn initLib(
         .dsym = dsymutil,
         .pkg_config = pc,
     };
+}
+
+/// Combine multiple static archives into a single fat archive.
+/// Uses libtool on Darwin and ar MRI scripts on other platforms.
+fn combineArchives(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    sources: []const std.Build.LazyPath,
+) struct { step: *std.Build.Step, output: std.Build.LazyPath } {
+    if (target.result.os.tag.isDarwin()) {
+        const libtool = LibtoolStep.create(b, .{
+            .name = "ghostty-vt",
+            .out_name = "libghostty-vt.a",
+            .sources = @constCast(sources),
+        });
+        return .{ .step = libtool.step, .output = libtool.output };
+    }
+
+    // On non-Darwin, use an MRI script with ar -M to combine archives
+    // directly without extracting. This avoids issues with ar x
+    // producing full-path member names and read-only permissions.
+    const run = RunStep.create(b, "combine-archives ghostty-vt");
+    run.addArgs(&.{
+        "/bin/sh", "-c",
+        \\set -e
+        \\out="$1"; shift
+        \\script="CREATE $out"
+        \\for a in "$@"; do
+        \\  script="$script
+        \\ADDLIB $a"
+        \\done
+        \\script="$script
+        \\SAVE
+        \\END"
+        \\echo "$script" | ar -M
+        ,
+        "_",
+    });
+    const output = run.addOutputFileArg("libghostty-vt.a");
+    for (sources) |source| run.addFileArg(source);
+
+    return .{ .step = &run.step, .output = output };
+}
+
+/// Returns the Libs.private value for the pkg-config file.
+/// This includes the C++ standard library needed by SIMD code.
+///
+/// Zig compiles C++ code with LLVM's libc++ (not GNU libstdc++),
+/// so consumers linking the static library need a libc++-compatible
+/// toolchain: `zig cc`, `clang`, or GCC with `-lc++` installed.
+fn libsPrivate(
+    zig: *const GhosttyZig,
+) []const u8 {
+    return if (zig.vt_c.link_libcpp orelse false) "-lc++" else "";
+}
+
+/// Returns the Requires.private value for the pkg-config file.
+/// When SIMD dependencies are provided by the system (via
+/// -Dsystem-integration), we reference their pkg-config names so
+/// that downstream consumers pick them up transitively.
+fn requiresPrivate(b: *std.Build) []const u8 {
+    const system_simdutf = b.systemIntegrationOption("simdutf", .{});
+    const system_highway = b.systemIntegrationOption("highway", .{ .default = false });
+
+    if (system_simdutf and system_highway) return "simdutf, libhwy";
+    if (system_simdutf) return "simdutf";
+    if (system_highway) return "libhwy";
+    return "";
 }
 
 pub fn install(

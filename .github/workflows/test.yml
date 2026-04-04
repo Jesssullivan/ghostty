@@ -108,6 +108,7 @@ jobs:
       - test-i18n
       - test-fuzz-libghostty
       - test-lib-vt
+      - test-lib-vt-pkgconfig
       - test-macos
       - test-windows
       - pinact
@@ -326,6 +327,116 @@ jobs:
           test -d zig-out/include/ghostty
           ls -la zig-out/lib/
           ls -la zig-out/include/ghostty/
+
+  test-lib-vt-pkgconfig:
+    runs-on: namespace-profile-ghostty-sm
+    needs: test
+    env:
+      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
+      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Cache
+        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
+        with:
+          path: |
+            /nix
+            /zig
+
+      # Install Nix and use that to run our tests so our environment matches exactly.
+      - uses: cachix/install-nix-action@96951a368ba55167b55f1c916f7d416bac6505fe # v31.10.3
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - uses: cachix/cachix-action@1eb2ef646ac0255473d23a5907ad7b04ce94065c # v17
+        with:
+          name: ghostty
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+
+      - name: Build libghostty-vt
+        run: nix develop -c zig build -Demit-lib-vt
+
+      - name: Verify pkg-config file
+        run: |
+          export PKG_CONFIG_PATH="$PWD/zig-out/share/pkgconfig"
+          pkg-config --validate libghostty-vt
+          echo "Cflags: $(pkg-config --cflags libghostty-vt)"
+          echo "Libs:   $(pkg-config --libs libghostty-vt)"
+          echo "Static: $(pkg-config --libs --static libghostty-vt)"
+
+          # Libs.private must include the C++ standard library
+          pkg-config --libs --static libghostty-vt | grep -q -- '-lc++'
+
+      - name: Verify static archive contains SIMD deps
+        run: |
+          nm -g zig-out/lib/libghostty-vt.a | grep -q ' T .*simdutf'
+          nm -g zig-out/lib/libghostty-vt.a | grep -q ' T .*3hwy'
+
+      - name: Write test program
+        run: |
+          cat > /tmp/test_libghostty_vt.c << 'TESTEOF'
+          #include <ghostty/vt.h>
+          #include <stdio.h>
+          int main(void) {
+              bool simd = false;
+              GhosttyResult r = ghostty_build_info(GHOSTTY_BUILD_INFO_SIMD, &simd);
+              if (r != GHOSTTY_SUCCESS) return 1;
+              printf("SIMD: %s\n", simd ? "yes" : "no");
+              return 0;
+          }
+          TESTEOF
+
+      - name: Test shared link via pkg-config
+        run: |
+          export PKG_CONFIG_PATH="$PWD/zig-out/share/pkgconfig"
+          nix develop -c cc -o /tmp/test_shared /tmp/test_libghostty_vt.c \
+            $(pkg-config --cflags --libs libghostty-vt) \
+            -Wl,-rpath,"$PWD/zig-out/lib"
+          /tmp/test_shared
+
+      - name: Test static link via pkg-config
+        run: |
+          export PKG_CONFIG_PATH="$PWD/zig-out/share/pkgconfig"
+          # The static library is compiled with LLVM libc++ (not GNU
+          # libstdc++), so linking requires a libc++-compatible toolchain.
+          # zig cc, clang, or gcc with libc++-dev installed all work.
+          nix develop -c zig cc -o /tmp/test_static /tmp/test_libghostty_vt.c \
+            $(pkg-config --cflags libghostty-vt) \
+            "$PWD/zig-out/lib/libghostty-vt.a" \
+            $(pkg-config --libs-only-l --static libghostty-vt | sed 's/-lghostty-vt//')
+          /tmp/test_static
+          # Verify it's truly statically linked (no libghostty-vt.so dependency)
+          ! ldd /tmp/test_static 2>/dev/null | grep -q libghostty-vt
+
+      # Test system integration: rebuild with -Dsystem-simdutf=true so
+      # simdutf comes from the system instead of being vendored. This
+      # verifies the .pc file uses Requires.private for system deps and
+      # the fat archive only bundles the remaining vendored deps.
+      - name: Rebuild with system simdutf
+        run: |
+          rm -rf zig-out
+          nix develop -c zig build -Demit-lib-vt -fsys=simdutf
+
+      - name: Verify pkg-config with system simdutf
+        run: |
+          export PKG_CONFIG_PATH="$PWD/zig-out/share/pkgconfig"
+          pc_content=$(cat zig-out/share/pkgconfig/libghostty-vt.pc)
+          echo "$pc_content"
+
+          # Requires.private must reference simdutf
+          echo "$pc_content" | grep -q 'Requires.private:.*simdutf'
+
+          # Requires.private must NOT reference libhwy (still vendored)
+          ! echo "$pc_content" | grep -q 'Requires.private:.*libhwy'
+
+      - name: Verify archive with system simdutf
+        run: |
+          # simdutf symbols must NOT be defined (comes from system)
+          ! nm -g zig-out/lib/libghostty-vt.a | grep -q ' T .*simdutf'
+
+          # highway symbols must still be defined (vendored)
+          nm -g zig-out/lib/libghostty-vt.a | grep -q ' T .*3hwy'
 
   build-flatpak:
     strategy:
@@ -652,6 +763,18 @@ jobs:
 
       - name: Check to see if the binary has not been stripped
         run: nm result/bin/.ghostty-wrapped 2>&1 | grep -q 'main_ghostty.main'
+
+      - name: Test ReleaseFast build of libghostty-vt
+        run: nix build .#libghostty-vt-releasefast
+
+      - name: Check to see if the library looks sane
+        run: nm result/lib/libghostty-vt.so.0.1.0 2>&1 | grep -q 'ghostty_terminal_new'
+
+      - name: Test Debug build of libghostty-vt
+        run: nix build .#libghostty-vt-debug
+
+      - name: Check to see if the library looks sane
+        run: nm result/lib/libghostty-vt.so.0.1.0 2>&1 | grep -q 'ghostty_terminal_new'
 
   build-dist:
     runs-on: namespace-profile-ghostty-sm

@@ -392,6 +392,9 @@ fn setTyped(
     return .success;
 }
 
+/// C: GhosttyDeviceAttributes
+pub const DeviceAttributes = Effects.CDeviceAttributes;
+
 /// C: GhosttyTerminalScrollViewport
 pub const ScrollViewport = ZigTerminal.ScrollViewport.C;
 

@@ -11,6 +11,12 @@ const TerminalBuildOptions = @import("../terminal/build_options.zig").Options;
 vt: *std.Build.Module,
 vt_c: *std.Build.Module,
 
+/// Static library paths for vendored SIMD dependencies. Populated
+/// only when the dependencies are built from source (not provided
+/// by the system via -Dsystem-integration). Used to produce a
+/// combined static archive for downstream consumers.
+simd_libs: SharedDeps.LazyPathList,
+
 pub fn init(
     b: *std.Build,
     cfg: *const Config,
@@ -24,6 +30,8 @@ pub fn init(
     // conditionally do this.
     vt_options.oniguruma = false;
 
+    var simd_libs: SharedDeps.LazyPathList = .empty;
+
     return .{
         .vt = try initVt(
             "ghostty-vt",
@@ -31,6 +39,7 @@ pub fn init(
             cfg,
             deps,
             vt_options,
+            null,
         ),
 
         .vt_c = try initVt(
@@ -43,7 +52,10 @@ pub fn init(
                 dup.c_abi = true;
                 break :options dup;
             },
+            &simd_libs,
         ),
+
+        .simd_libs = simd_libs,
     };
 }
 
@@ -53,6 +65,7 @@ fn initVt(
     cfg: *const Config,
     deps: *const SharedDeps,
     vt_options: TerminalBuildOptions,
+    simd_libs: ?*SharedDeps.LazyPathList,
 ) !*std.Build.Module {
     // General build options
     const general_options = b.addOptions();
@@ -82,7 +95,7 @@ fn initVt(
 
     // If SIMD is enabled, add all our SIMD dependencies.
     if (cfg.simd) {
-        try SharedDeps.addSimd(b, vt, null);
+        try SharedDeps.addSimd(b, vt, simd_libs);
     }
 
     return vt;

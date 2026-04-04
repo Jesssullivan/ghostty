@@ -446,18 +446,16 @@ extension Ghostty {
                     }
 #endif
                     .backport.onKeyPress(.return) { modifiers in
-                        guard let surface = surfaceView.surface else { return .ignored }
-                        let action = modifiers.contains(.shift)
-                        ? "navigate_search:previous"
-                        : "navigate_search:next"
-                        ghostty_surface_binding_action(surface, action, UInt(action.lengthOfBytes(using: .utf8)))
+                        if modifiers.contains(.shift) {
+                            _ = surfaceView.navigateSearchToPrevious()
+                        } else {
+                            _ = surfaceView.navigateSearchToNext()
+                        }
                         return .handled
                     }
 
                     Button(action: {
-                        guard let surface = surfaceView.surface else { return }
-                        let action = "navigate_search:next"
-                        ghostty_surface_binding_action(surface, action, UInt(action.lengthOfBytes(using: .utf8)))
+                        _ = surfaceView.navigateSearchToNext()
                     }, label: {
                         Image(systemName: "chevron.up")
                     })
@@ -1276,5 +1274,29 @@ extension Ghostty.SurfaceView {
         init(from startSearch: Ghostty.Action.StartSearch) {
             self.needle = startSearch.needle ?? ""
         }
+    }
+
+    func navigateSearchToNext() -> Bool {
+        guard let surface = self.surface else { return false }
+        let action = "navigate_search:next"
+        if !ghostty_surface_binding_action(surface, action, UInt(action.lengthOfBytes(using: .utf8))) {
+#if canImport(AppKit)
+            AppDelegate.logger.warning("action failed action=\(action)")
+#endif
+            return false
+        }
+        return true
+    }
+
+    func navigateSearchToPrevious() -> Bool {
+        guard let surface = self.surface else { return false }
+        let action = "navigate_search:previous"
+        if !ghostty_surface_binding_action(surface, action, UInt(action.lengthOfBytes(using: .utf8))) {
+#if canImport(AppKit)
+            AppDelegate.logger.warning("action failed action=\(action)")
+#endif
+            return false
+        }
+        return true
     }
 }

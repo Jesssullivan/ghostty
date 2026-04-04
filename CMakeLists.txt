@@ -151,15 +151,15 @@ add_dependencies(ghostty-vt zig_build_lib_vt)
 
 # Static
 #
-# When linking the static library, consumers must also link its transitive
-# dependencies. By default (with SIMD enabled), these are:
-#   - libc
-#   - libc++ (or libstdc++ on Linux)
-#   - highway
-#   - simdutf
+# On Linux and macOS, the static library is a fat archive that bundles
+# the vendored SIMD dependencies (highway, simdutf, utfcpp). Consumers
+# only need to link libc and libc++ (LLVM's C++ runtime, not GNU
+# libstdc++). Use zig cc, clang, or any toolchain with libc++ support.
 #
-# Building with -Dsimd=false removes the C++ / highway / simdutf
-# dependencies, leaving only libc.
+# On Windows, the SIMD dependencies are not bundled and must be linked
+# separately.
+#
+# Building with -Dsimd=false removes all runtime dependencies.
 add_library(ghostty-vt-static STATIC IMPORTED GLOBAL)
 set_target_properties(ghostty-vt-static PROPERTIES
     IMPORTED_LOCATION "${GHOSTTY_VT_STATIC_LIBRARY}"
