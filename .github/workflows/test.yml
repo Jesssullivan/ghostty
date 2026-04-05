@@ -770,8 +770,20 @@ jobs:
       - name: Check to see if the library looks sane
         run: nm result/lib/libghostty-vt.so.0.1.0 2>&1 | grep -q 'ghostty_terminal_new'
 
+      - name: Test ReleaseFast (no SIMD) build of libghostty-vt
+        run: nix build .#libghostty-vt-releasefast-no-simd
+
+      - name: Check to see if the library looks sane
+        run: nm result/lib/libghostty-vt.so.0.1.0 2>&1 | grep -q 'ghostty_terminal_new'
+
       - name: Test Debug build of libghostty-vt
         run: nix build .#libghostty-vt-debug
+
+      - name: Check to see if the library looks sane
+        run: nm result/lib/libghostty-vt.so.0.1.0 2>&1 | grep -q 'ghostty_terminal_new'
+
+      - name: Test Debug (no SIMD) build of libghostty-vt
+        run: nix build .#libghostty-vt-debug-no-simd
 
       - name: Check to see if the library looks sane
         run: nm result/lib/libghostty-vt.so.0.1.0 2>&1 | grep -q 'ghostty_terminal_new'

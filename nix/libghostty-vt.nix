@@ -7,6 +7,7 @@
   zig_0_15,
   revision ? "dirty",
   optimize ? "Debug",
+  simd ? true,
 }:
 stdenv.mkDerivation (finalAttrs: {
   pname = "ghostty";
@@ -55,6 +56,7 @@ stdenv.mkDerivation (finalAttrs: {
     "-Doptimize=${optimize}"
     "-Dapp-runtime=none"
     "-Demit-lib-vt=true"
+    "-Dsimd=${lib.boolToString simd}"
   ];
 
   outputs = [
