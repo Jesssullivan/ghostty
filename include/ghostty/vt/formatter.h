@@ -11,6 +11,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <ghostty/vt/allocator.h>
+#include <ghostty/vt/selection.h>
 #include <ghostty/vt/types.h>
 #include <ghostty/vt/terminal.h>
 
@@ -133,6 +134,10 @@ typedef struct {
 
   /** Extra terminal state to include in styled output. */
   GhosttyFormatterTerminalExtra extra;
+
+  /** Optional selection to restrict output to a range.
+   *  If NULL, the entire screen is formatted. */
+  const GhosttySelection *selection;
 } GhosttyFormatterTerminalOptions;
 
 /**
