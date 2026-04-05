@@ -148,6 +148,7 @@ pub const type_json = types.get_json;
 pub const grid_ref_cell = grid_ref.grid_ref_cell;
 pub const grid_ref_row = grid_ref.grid_ref_row;
 pub const grid_ref_graphemes = grid_ref.grid_ref_graphemes;
+pub const grid_ref_hyperlink_uri = grid_ref.grid_ref_hyperlink_uri;
 pub const grid_ref_style = grid_ref.grid_ref_style;
 
 test {
