@@ -13,6 +13,7 @@ const size_report = @import("size_report.zig");
 
 const terminal = @import("terminal.zig");
 const formatter = @import("formatter.zig");
+const selection = @import("selection.zig");
 const render = @import("render.zig");
 const style_c = @import("style.zig");
 const mouse_encode = @import("mouse_encode.zig");
@@ -26,6 +27,7 @@ pub const structs: std.StaticStringMap(StructInfo) = .initComptime(.{
     .{ "GhosttyDeviceAttributesSecondary", StructInfo.init(terminal.DeviceAttributes.Secondary) },
     .{ "GhosttyDeviceAttributesTertiary", StructInfo.init(terminal.DeviceAttributes.Tertiary) },
     .{ "GhosttyFormatterTerminalOptions", StructInfo.init(formatter.TerminalOptions) },
+    .{ "GhosttySelection", StructInfo.init(selection.CSelection) },
     .{ "GhosttyFormatterTerminalExtra", StructInfo.init(formatter.TerminalOptions.Extra) },
     .{ "GhosttyFormatterScreenExtra", StructInfo.init(formatter.ScreenOptions.Extra) },
     .{ "GhosttyGridRef", StructInfo.init(grid_ref.CGridRef) },

@@ -12,6 +12,7 @@ pub const types = @import("types.zig");
 pub const modes = @import("modes.zig");
 pub const osc = @import("osc.zig");
 pub const render = @import("render.zig");
+pub const selection = @import("selection.zig");
 pub const key_event = @import("key_event.zig");
 pub const key_encode = @import("key_encode.zig");
 pub const mouse_event = @import("mouse_event.zig");
@@ -162,6 +163,7 @@ test {
     _ = modes;
     _ = osc;
     _ = render;
+    _ = selection;
     _ = key_event;
     _ = key_encode;
     _ = mouse_event;

@@ -29,7 +29,7 @@ pub const CGridRef = extern struct {
         };
     }
 
-    fn toPin(self: CGridRef) ?PageList.Pin {
+    pub fn toPin(self: CGridRef) ?PageList.Pin {
         return .{
             .node = self.node orelse return null,
             .x = self.x,
