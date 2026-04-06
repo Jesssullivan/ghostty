@@ -12,6 +12,7 @@ pub const types = @import("types.zig");
 pub const modes = @import("modes.zig");
 pub const osc = @import("osc.zig");
 pub const render = @import("render.zig");
+pub const selection = @import("selection.zig");
 pub const key_event = @import("key_event.zig");
 pub const key_encode = @import("key_encode.zig");
 pub const mouse_event = @import("mouse_event.zig");
@@ -148,6 +149,7 @@ pub const type_json = types.get_json;
 pub const grid_ref_cell = grid_ref.grid_ref_cell;
 pub const grid_ref_row = grid_ref.grid_ref_row;
 pub const grid_ref_graphemes = grid_ref.grid_ref_graphemes;
+pub const grid_ref_hyperlink_uri = grid_ref.grid_ref_hyperlink_uri;
 pub const grid_ref_style = grid_ref.grid_ref_style;
 
 test {
@@ -162,6 +164,7 @@ test {
     _ = modes;
     _ = osc;
     _ = render;
+    _ = selection;
     _ = key_event;
     _ = key_encode;
     _ = mouse_event;

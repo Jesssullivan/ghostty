@@ -82,6 +82,7 @@ faukah
 filip7
 flou
 francescarpi
+fru1tworld
 gagbo
 ghokun
 gmile
@@ -102,6 +103,7 @@ icodesign
 j0hnm4r5
 jacobsandlund
 jake-stewart
+jamylak
 jarred-sumner
 jcollie
 jesusvazquez
@@ -115,6 +117,7 @@ juniqlim
 justonia
 karesansui-u
 kawarimidoll
+kayleung
 kenvandine
 khipp
 kirwiisp
@@ -154,6 +157,7 @@ mrmage
 mtak
 natesmyth
 neo773
+neurosnap
 nicholas-ochoa
 nicosuave
 nmggithub
