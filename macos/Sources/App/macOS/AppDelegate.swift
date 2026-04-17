@@ -673,6 +673,22 @@ class AppDelegate: NSObject,
         syncDockBadge()
     }
 
+    private func requestBadgeAuthorizationAndSet(_ center: UNUserNotificationCenter) {
+        center.requestAuthorization(options: [.badge]) { granted, error in
+            if let error = error {
+                Self.logger.warning("Error requesting badge authorization: \(error)")
+                return
+            }
+
+            // Permission granted, set the badge
+            if granted {
+                DispatchQueue.main.async {
+                    self.setDockBadge()
+                }
+            }
+        }
+    }
+
     private func syncDockBadge() {
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
@@ -683,23 +699,16 @@ class AppDelegate: NSObject,
                     DispatchQueue.main.async {
                         self.setDockBadge()
                     }
+                } else if settings.badgeSetting == .notSupported {
+                    // If badge setting is not supported, we may be in a sandbox that doesn't allow it.
+                    // We can still attempt to set the badge and hope for the best, but we should also
+                    // request authorization just in case it is a permissions issue.
+                    self.requestBadgeAuthorizationAndSet(center)
                 }
 
             case .notDetermined:
                 // Not determined yet, request authorization for badge
-                center.requestAuthorization(options: [.badge]) { granted, error in
-                    if let error = error {
-                        Self.logger.warning("Error requesting badge authorization: \(error)")
-                        return
-                    }
-
-                    if granted {
-                        // Permission granted, set the badge
-                        DispatchQueue.main.async {
-                            self.setDockBadge()
-                        }
-                    }
-                }
+                self.requestBadgeAuthorizationAndSet(center)
 
             case .denied, .provisional, .ephemeral:
                 // In these known non-authorized states, do not attempt to set the badge.

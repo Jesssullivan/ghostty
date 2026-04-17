@@ -259,14 +259,6 @@ in
       };
     }
     {
-      name = "N-V-__8AAHffAgDU0YQmynL8K35WzkcnMUmBVQHQ0jlcKpjH";
-      path = fetchZigArtifact {
-        name = "utfcpp";
-        url = "https://deps.files.ghostty.org/utfcpp-1220d4d18426ca72fc2b7e56ce47273149815501d0d2395c2a98c726b31ba931e641.tar.gz";
-        hash = "sha256-/8ZooxDndgfTk/PBizJxXyI9oerExNbgV5oR345rWc8=";
-      };
-    }
-    {
       name = "uucode-0.1.0-ZZjBPj96QADXyt5sqwBJUnhaDYs_qBeeKijZvlRa0eqM";
       path = fetchZigArtifact {
         name = "uucode";
