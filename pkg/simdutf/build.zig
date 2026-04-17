@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
     const target = b.standardTargetOptions(.{});
+    const no_libcxx = b.option(bool, "no_libcxx", "Set SIMDUTF_NO_LIBCXX to avoid libc++ dependency") orelse false;
 
     const lib = b.addLibrary(.{
         .name = "simdutf",
@@ -13,13 +14,15 @@ pub fn build(b: *std.Build) !void {
         .linkage = .static,
     });
     lib.linkLibC();
-    // On MSVC, we must not use linkLibCpp because Zig unconditionally
-    // passes -nostdinc++ and then adds its bundled libc++/libc++abi
-    // include paths, which conflict with MSVC's own C++ runtime headers.
-    // The MSVC SDK include directories (added via linkLibC) contain
-    // both C and C++ headers, so linkLibCpp is not needed.
-    if (target.result.abi != .msvc) {
-        lib.linkLibCpp();
+    if (!no_libcxx) {
+        // On MSVC, we must not use linkLibCpp because Zig unconditionally
+        // passes -nostdinc++ and then adds its bundled libc++/libc++abi
+        // include paths, which conflict with MSVC's own C++ runtime headers.
+        // The MSVC SDK include directories (added via linkLibC) contain
+        // both C and C++ headers, so linkLibCpp is not needed.
+        if (target.result.abi != .msvc) {
+            lib.linkLibCpp();
+        }
     }
     lib.addIncludePath(b.path("vendor"));
 
@@ -44,6 +47,13 @@ pub fn build(b: *std.Build) !void {
         "-fno-sanitize=undefined",
         "-fno-sanitize-trap=undefined",
     });
+
+    if (no_libcxx) {
+        try flags.append(b.allocator, "-DSIMDUTF_NO_LIBCXX");
+        try flags.append(b.allocator, "-fno-exceptions");
+        try flags.append(b.allocator, "-fno-rtti");
+        lib.root_module.addCMacro("SIMDUTF_NO_LIBCXX", "1");
+    }
 
     if (target.result.os.tag == .freebsd or target.result.abi == .musl) {
         try flags.append(b.allocator, "-fPIC");
