@@ -28,6 +28,7 @@ adrum
 aindriu80
 alaasdk
 alanmoyano
+alaviss
 alexfeijoo44
 alexjuca
 alosarjos
@@ -83,6 +84,7 @@ eriksremess
 faukah
 filip7
 flou
+fornwall
 francescarpi
 fru1tworld
 gagbo
@@ -112,6 +114,7 @@ jcollie
 jesusvazquez
 jguthmiller
 jmcgover
+jmr
 johnslavik
 jordandm
 josephmart
@@ -147,6 +150,7 @@ markhuot
 marler8997
 marrocco-simone
 matkotiric
+mattn
 micaeljarniac
 michielvk
 miguelelgallo
@@ -195,8 +199,10 @@ rmengelbrecht
 rmunn
 rockorager
 rpfaeffle
+sandydoo
 secrus
 seruman
+seyoungjeong
 silveirapf
 slsrepo
 sunshine-syz
